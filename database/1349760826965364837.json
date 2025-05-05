@@ -1,0 +1,8 @@
+{
+    "mod_log_ch": null,
+    "mod_cmd_log_ch": null,
+    "msg_log_ch": null,
+    "ticket_cmds": true,
+    "ticket_log_ch": null,
+    "autorole": null
+}
