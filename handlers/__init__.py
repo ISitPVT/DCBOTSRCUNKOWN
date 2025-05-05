@@ -1,0 +1,3 @@
+from .slash_handler import setup_slash_commands
+from .prefix_handler import setup_prefix_commands
+from .noprefix_handler import setup_noprefix_commands
