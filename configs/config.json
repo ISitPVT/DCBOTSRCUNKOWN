@@ -1,0 +1,16 @@
+{
+    "owner_id": 1112710796229742652,
+    "dev_ids": [1112710796229742652 , 1166638216791728211],
+    "lockdown": false,
+    "owner_guild_ids": [1349760826965364837,1191011238164037653],
+    "system_ch_id": 1367056318086774794,
+    "support_server_url": "https://discord.gg/mcaddon",
+    "discord_api_token": "API TOKEN",
+    "lavalink": {
+        "name": "",
+        "host": "",
+        "port": 9202,
+        "pass": "",
+        "secure": false
+    }
+}
