@@ -17,61 +17,117 @@ class NoPrefixHandler(commands.Cog):
             with open('./data/noprefix.json', 'w') as f:
                 json.dump({"users": []}, f, indent=4)
     
+    @commands.Cog.listener()
+    async def on_message(self, message):
+        """Listen for messages and process no-prefix commands if applicable"""
+        # Skip processing bot messages
+        if message.author.bot:
+            return
+            
+        # Skip messages in DMs (no-prefix only works in servers)
+        if not message.guild:
+            return
+            
+        # Check if user has no-prefix permission
+        if not (db.is_owner(message.author.id) or 
+                db.is_dev(message.author.id) or 
+                message.author.id in db._load_noprefix().get("users", [])):
+            return
+            
+        # Don't process messages that start with a prefix
+        prefix = db.get_prefix(message.guild.id)
+        if message.content.startswith(prefix):
+            return
+            
+        # Create context
+        ctx = await self.client.get_context(message)
+        
+        # Process the potential command
+        await self.process_noprefix_commands(ctx)
+    
     async def process_noprefix_commands(self, ctx):
         """Process commands without prefix for authorized users"""
-        # This method will be called from on_message if the user has no-prefix permission
-        
         message = ctx.message
         content = message.content.strip()
         
-        # Special handling for help command
-        if content.lower() == "help":
-            help_cog = self.client.get_cog("HelpCommands")
-            if help_cog:
-                # If our custom help command cog exists, use the special method
-                if hasattr(help_cog, "process_noprefix_help"):
-                    await help_cog.process_noprefix_help(ctx)
-                    return
-        
         # Get first word as command
-        command_name = content.split(' ')[0].lower()
+        command_parts = content.split(' ', 1)
+        command_name = command_parts[0].lower()
         
-        # Check if this command exists in the no-prefix commands cog
-        for command in self.client.walk_commands():
-            if not command.cog:
-                continue
-                
-            if command.cog.qualified_name != "NoPrefixCommands":
-                continue
-                
-            if command.name == command_name or command_name in command.aliases:
-                # Create a fake context with the command name prefixed
-                default_prefix = self.client.command_prefix(self.client, message)[0]
-                new_content = default_prefix + content
-                message.content = new_content
-                
-                # Process this command
-                ctx = await self.client.get_context(message)
-                await self.client.invoke(ctx)
-                
-                # Restore original content
-                message.content = content
-                return
-                
-        # If we've reached here and the command is just "help", let's handle it as a special case
-        # This allows help to work even if there's no NoPrefixCommands cog
+        # Check for specific utility commands
+        utility_commands = [
+            "ping", "uptime", "stats", "avatar", "userinfo", "serverinfo", "emojiinfo"
+        ]
+        
+        # Special handling for help command
         if command_name == "help":
-            # Create a fake context with the help command prefixed
+            help_cog = self.client.get_cog("HelpCommands")
+            if help_cog and hasattr(help_cog, "process_noprefix_help"):
+                await help_cog.process_noprefix_help(ctx)
+                return
+        
+        # Special handling for dev commands
+        dev_commands = {
+            "dev-add": "process_noprefix_dev_add",
+            "dev-remove": "process_noprefix_dev_remove", 
+            "dev-list": "process_noprefix_dev_list",
+            "lockdown": "process_noprefix_lockdown",
+            "restart": "process_noprefix_restart",
+            "reload-cogs": "process_noprefix_reload_cogs",
+            "shutdown": "process_noprefix_shutdown",
+            "status": "process_noprefix_status",
+            "guild-list": "process_noprefix_guild_list",
+            "guild-leave": "process_noprefix_guild_leave"
+        }
+        
+        if command_name in dev_commands:
+            dev_cog = self.client.get_cog("PrefixDevCommands")
+            if dev_cog and hasattr(dev_cog, dev_commands[command_name]):
+                # Parse arguments if any
+                args = []
+                if len(command_parts) > 1:
+                    args = command_parts[1].strip().split()
+                
+                # Call the method with appropriate arguments
+                method = getattr(dev_cog, dev_commands[command_name])
+                if args:
+                    await method(ctx, *args)
+                else:
+                    await method(ctx)
+                return
+        
+        # Otherwise, check if this is a standard utility command
+        if command_name in utility_commands:
+            # Create a fake context with the command name prefixed
             default_prefix = self.client.command_prefix(self.client, message)[0]
             new_content = default_prefix + content
             message.content = new_content
             
             # Process this command
-            ctx = await self.client.get_context(message)
-            await self.client.invoke(ctx)
+            new_ctx = await self.client.get_context(message)
+            await self.client.invoke(new_ctx)
             
             # Restore original content
             message.content = content
+            return
+        
+        # Otherwise, check the NoPrefixCommands cog for any other commands
+        no_prefix_cog = self.client.get_cog("NoPrefixCommands")
+        if no_prefix_cog:
+            for command in no_prefix_cog.get_commands():
+                if command.name == command_name or command_name in getattr(command, "aliases", []):
+                    # Create a fake context with the command name prefixed
+                    default_prefix = self.client.command_prefix(self.client, message)[0]
+                    new_content = default_prefix + content
+                    message.content = new_content
+                    
+                    # Process this command
+                    new_ctx = await self.client.get_context(message)
+                    await self.client.invoke(new_ctx)
+                    
+                    # Restore original content
+                    message.content = content
+                    return
 
 def setup_noprefix_commands(client):
     """Sets up no-prefix command functionality"""
